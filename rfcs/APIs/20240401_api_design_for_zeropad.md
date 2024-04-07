@@ -141,8 +141,59 @@ ZeroPad3D的实现方式与ZeroPad1D类似。
 
 ## TensorFlow方案
 
+tensorflow中有API[`tf.keras.layers.ZeroPadding1D()`](https://www.tensorflow.org/api_docs/python/tf/keras/layers/ZeroPadding1D)和[`tf.keras.layers.ZeroPadding3D()`](https://www.tensorflow.org/api_docs/python/tf/keras/layers/ZeroPadding3D)。
+
+ZeroPadding1D的实现如下：
+
+```python
+@keras_export("keras.layers.ZeroPadding1D")
+class ZeroPadding1D(Layer):
+    """Zero-padding layer for 1D input (e.g. temporal sequence).
+
+    Args:
+        padding: Int, or tuple of int (length 2), or dictionary.
+            - If int: how many zeros to add at the beginning and end of
+              the padding dimension (axis 1).
+            - If tuple of 2 ints: how many zeros to add at the beginning and the
+              end of the padding dimension (`(left_pad, right_pad)`).
+
+    Input shape:
+        3D tensor with shape `(batch_size, axis_to_pad, features)`
+
+    Output shape:
+        3D tensor with shape `(batch_size, padded_axis, features)`
+    """
+
+    def __init__(self, padding=1, **kwargs):
+        super().__init__(**kwargs)
+        self.padding = argument_validation.standardize_tuple(
+            padding, 2, "padding", allow_zero=True
+        )
+        self.input_spec = InputSpec(ndim=3)
+
+    def compute_output_shape(self, input_shape):
+        output_shape = list(input_shape)
+        if output_shape[1] is not None:
+            output_shape[1] += self.padding[0] + self.padding[1]
+        return tuple(output_shape)
+
+    def call(self, inputs):
+        all_dims_padding = ((0, 0), self.padding, (0, 0))
+        return ops.pad(inputs, all_dims_padding)
+
+    def get_config(self):
+        config = {"padding": self.padding}
+        base_config = super().get_config()
+        return {**base_config, **config}
+```
+
+ZeroPadding1D继承了Layer，实现了`compute_output_shape`和`call`函数。`compute_output_shape`函数计算输出张量的形状，`call`函数调用`ops.pad`函数实现对张量的填充。只能填充3D tensor的第二个维度（axis=1）。
+
+ZeroPadding3D的实现方式与ZeroPadding1D类似,也是依赖在`call`函数中调用`ops.pad`函数。
+
+
 # 四、对比分析
-对第三部分调研的方案进行对比**评价**和**对比分析**，论述各种方案的优劣势。
+pytorch和tensorflow中的ZeroPad1D和ZeroPad3D实现方式类似，都是通过调用`F.pad`或`ops.pad`这种填充函数实现的。但是pytorch对输入数据维度没有严格限制，而tensorflow对输入数据维度有限制。此外tensorflow默认填充中间的维度，而pytorch默认填充最后几个维度。
 
 # 五、设计思路与实现方案
 
